@@ -1,0 +1,59 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: simpleapp-{{.Replica}}-{{.Iteration}}
+spec:
+  template:
+    metadata:
+      labels:
+        name: simpleapp-{{.Replica}}-{{.Iteration}}
+    spec:
+      nodeSelector:
+        node-role.kubernetes.io/worker: ""
+      containers:
+      - name: simpleapp
+        image: quay.io/numansidcan/simpleapp:latest
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -xem
+          echo "Trying to connect to the server $SIMPLESERVER_HOSTNAME : $SIMPLESERVER_PORT"
+
+          while true
+          do
+              success="true" $SIMPLESERVER_PORT
+              nc -vz $SIMPLESERVER_HOSTNAME 
+              if [[ "$?" == "0" ]]; then
+                  touch /tmp/healthy
+                  sleep 5
+              else
+                  rm -f /tmp/healthy
+              fi
+          done
+        readinessProbe:
+          exec:
+            command:
+            - cat
+            - /tmp/healthy
+          initialDelaySeconds: 30
+          timeoutSeconds: 60
+          periodSeconds: {{ .readinessPeriod }}
+          failureThreshold: 1
+        env:
+        - name: SIMPLESERVER_HOSTNAME
+          value: simpleserver-{{.Replica}}-{{.Iteration}}
+        - name: SIMPLESERVER_PORT
+          value: '5432'
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          privileged: false
+      restartPolicy: Always
+  replicas: 1
+  selector:
+    matchLabels:
+      name: simpleapp-{{.Replica}}-{{.Iteration}}
+  triggers:
+  - type: ConfigChange
+  strategy:
+    type: RollingUpdate

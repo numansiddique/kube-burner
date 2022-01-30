@@ -1,0 +1,37 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: simpleserver-{{.Replica}}-{{.Iteration}}
+spec:
+  template:
+    metadata:
+      labels:
+        name: simpleserver-{{.Replica}}-{{.Iteration}}
+    spec:
+      nodeSelector:
+        node-role.kubernetes.io/worker: ""
+      containers:
+      - name: simpleserver
+        image: quay.io/numansidcan/simpleapp:latest
+        ports:
+        - containerPort: 5432
+          protocol: TCP
+        imagePullPolicy: IfNotPresent
+        command:
+        - /bin/bash
+        - -c
+        - |
+          set -xem
+          echo "Listening on port 5432"
+          nc -l -k -v 5432
+        securityContext:
+          privileged: false
+      restartPolicy: Always
+  replicas: 1
+  selector:
+    matchLabels:
+      name: simpleserver-{{.Replica}}-{{.Iteration}}
+  triggers:
+  - type: ConfigChange
+  strategy:
+    type: RollingUpdate
